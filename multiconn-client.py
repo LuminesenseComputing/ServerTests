@@ -17,7 +17,7 @@ class lightModuleClient:
         self.connid = connid
         print("    Light ", self.connid, " is now ONLINE.")
 
-    def changeState(self):
+    def changeState(self):#change state of the light
         if self.state == 0:
             self.state = 1
             print("    Light ", self.connid, " is now ON.")
@@ -25,6 +25,14 @@ class lightModuleClient:
             self.state = 0
             print("    Light ", self.connid, " is now OFF.")
 
+    def confirmOn(self):#if the server is making sure that the light is on, ensure the light is on
+        self.state = 1
+        print("    Light ", self.connid, " is now CONFIRMED ON.")
+    
+    def confirmOff(self):#if the server is making sure that the light is off, ensure the light is off
+        self.state = 0
+        print("    Light ", self.connid, " is now CONFIRMED OFF.")
+        
     def closeLight(self):
         print("    Light ", self.connid, "is now OFFLINE.")
 
@@ -51,6 +59,7 @@ def start_connections(host, port, num_conns, lightModuleDict):
 def service_connection(key, mask, lightModuleDict):
     sock = key.fileobj
     data = key.data
+    lightModule = lightModuleDict[data.connid]
     if mask & selectors.EVENT_READ:
         recv_data = sock.recv(1024)  # Should be ready to read
         if recv_data:
@@ -58,13 +67,27 @@ def service_connection(key, mask, lightModuleDict):
             #data.recv_total += len(recv_data)
             if (recv_data == b"CHANGE STATE"):
                 #turn the light on or off
-                lightModuleDict[data.connid].changeState()
+                lightModule.changeState()
+                if lightModule.state == 0:
+                    #data.messages += [b"TURNED OFF"]
+                    pass
+                else:
+                    pass
+                    #data.messages += [b"TURNED ON"]
+            if (recv_data == b"CONFIRM ON"):
+                lightModule.confirmOn()
+                data.messages += [b"CONFIRMED ON"]
+            if (recv_data == b"CONFIRM OFF"):
+                lightModule.confirmOff()
+                data.messages += [b"CONFIRMED OFF"]
+
         if not recv_data: #or data.recv_total == data.msg_total:
             print("closing connection", data.connid)
             sel.unregister(sock)
             sock.close()
-            lightModuleDict[connid].closeLight()
+            lightModule.closeLight()
             lightModuleDict.pop(connid)
+    
     if mask & selectors.EVENT_WRITE:
         if not data.outb and data.messages:
             data.outb = data.messages.pop(0)
