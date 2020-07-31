@@ -8,15 +8,42 @@ sel = selectors.DefaultSelector()
 
 class lightModule:
     def __init__(self, port):
-        self.state = 0 #0 is off, 1 is on
+        self.state = 0 #0 is off, 1 is on, 2 is turning off, 3 is turning on
         self.port = port
+        self.changeTime = 0
         print("    Light ", self.port, " is now ONLINE.")
+
+   #EDGE CASES TO TAKE CARE OF:
+   #trying to turn light on or off while it is in unknown state
+   #time.time goes past the max value and goes back to zero
+   #OTHER FIXES:
+   #instead of change state make it more precise control... ie option to turn on/off
 
     def changeState(self):#must add "turning on/off" states
         if self.state == 0:
+            #self.state = 1
+            self.state = 3
+            print("    Light ", self.port, " is now TURNING ON.")
+        elif self.state == 1:
+            #self.state = 0
+            self.state = 2
+            print("    Light ", self.port, " is now TURNING OFF.")
+        self.changeTime = time.time()
+
+    def confirmStateChange(self):
+        self.changeTime = time.time()#reset the time at which the state change was last attempted
+        if self.state == 3:
+            print("    Light ", self.port, "turning on confirmation requested.")
+        elif self.state == 2:
+            print("    Light ", self.port, "turning off confirmation requested.")
+
+    def finalizeChangeState(self):
+        if self.state == 3:
+            #self.state = 1
             self.state = 1
             print("    Light ", self.port, " is now ON.")
-        else:
+        elif self.state == 2:
+            #self.state = 0
             self.state = 0
             print("    Light ", self.port, " is now OFF.")
 
@@ -35,21 +62,38 @@ def accept_wrapper(sock, lightModuleDict):
 def service_connection(key, mask, lightModuleDict, changeState):
     sock = key.fileobj
     data = key.data
+    lightModule = lightModuleDict[data.addr[1]]
     if changeState == True: #really sketch. Just demonstrating ideas
         data.messages  += [b"CHANGE STATE"]
-        lightModuleDict[data.addr[1]].changeState()
+        lightModule.changeState()
+
+    #check if any messages have been received from the light module
     if mask & selectors.EVENT_READ:
         recv_data = sock.recv(1024)  # Should be ready to read
         if recv_data:
-            #data.outb += recv_data
-            pass
+            print("received",repr(recv_data), "from", data.addr)
+            if recv_data == b"TURNED ON" or recv_data == b"TURNED OFF":#confirmation that the light has turned on/off
+                lightModule.finalizeChangeState()
+                #data.outb += recv_data
+            if recv_data == b"CONFIRMED ON" or recv_data == b"CONFIRMED OFF":#confirmation that the light has turned on/off after a delayed response
+                lightModule.finalizeChangeState()
         else:
-            lightModuleDict[data.addr[1]].closeLight()
+            lightModule.closeLight()
             lightModuleDict.pop(data.addr[1])
             print("closing connection to", data.addr)
             sel.unregister(sock)
             sock.close()
 
+    #if the current light has passed 2 seconds since attempting to turn on/off without response, confirm status
+    if not data.messages: #must check to make sure the light was not just turned on or off
+        if lightModule.state == 3 and (time.time() - lightModule.changeTime) > 2:
+            data.messages += [b"CONFIRM ON"]
+            lightModule.confirmStateChange()
+        elif lightModule.state == 2 and (time.time() - lightModule.changeTime) > 2:
+            data.messages += [b"CONFIRM OFF"]
+            lightModule.confirmStateChange()
+
+    #send any waiting messages to the light module
     if mask & selectors.EVENT_WRITE:
         if not data.outb and data.messages:
             data.outb = data.messages.pop()
@@ -79,7 +123,7 @@ try:
     changeState = False
     startTime = time.time()
     while True:
-        if time.time() - startTime > 5:
+        if time.time() - startTime > 7:
             changeState = True
             startTime = time.time()
         events = sel.select(timeout=None)
