@@ -69,11 +69,9 @@ def service_connection(key, mask, lightModuleDict):
                 #turn the light on or off
                 lightModule.changeState()
                 if lightModule.state == 0:
-                    #data.messages += [b"TURNED OFF"]
-                    pass
+                    data.messages += [b"TURNED OFF"]
                 else:
-                    pass
-                    #data.messages += [b"TURNED ON"]
+                    data.messages += [b"TURNED ON"]
             if (recv_data == b"CONFIRM ON"):
                 lightModule.confirmOn()
                 data.messages += [b"CONFIRMED ON"]
