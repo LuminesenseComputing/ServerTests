@@ -3,7 +3,7 @@ import selectors
 
 sel = selectors.DefaultSelector()
 
-wifiComm = multiconnClientClass.wifiCommunicator(sel, num_conns=3)
+wifiComm = multiconnClientClass.wifiCommunicator(sel, num_conns=5)
 
 while True:
     wifiComm.checkWifi()#check wifi signals

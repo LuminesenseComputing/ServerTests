@@ -6,13 +6,9 @@ import types
 
 class lightModuleClient:
     def __init__(self, connid):
-        self.state = 2 #0 is off, 1 is on, 2 is disconnected
+        self.state = 0 #0 is off, 1 is on
         self.connid = connid
-        print("    Light ", self.connid, " is NOT CONNECTED.")
-
-    def connect(self):#light becoming connected
-        self.state = 0 #start in the off state once connected
-        print("    Light ", self.connid, " is now CONNECTED AND OFF.")
+        print("    Light ", self.connid, " is now .")
 
     def changeState(self):#change state of the light
         if self.state == 0:
@@ -85,8 +81,6 @@ class wifiCommunicator():
                 if (recv_data == b"CONFIRM OFF"):
                     lightModule.confirmOff()
                     data.messages += [b"CONFIRMED OFF"]
-                if (recv_data == b"CONNECTED"):
-                    lightModule.connect()
 
             if not recv_data: #or data.recv_total == data.msg_total:
                 print("closing connection", data.connid)
