@@ -8,11 +8,19 @@ class lightModuleClient:
     def __init__(self, connid):
         self.state = 2 #0 is off, 1 is on, 2 is disconnected
         self.connid = connid
+        self.name = "light"
         print("    Light ", self.connid, " is NOT CONNECTED.")
 
     def connect(self):#light becoming connected
         self.state = 0 #start in the off state once connected
         print("    Light ", self.connid, " is now CONNECTED AND OFF.")
+
+    def changeName(self, newName):#change of name has been requested
+        self.name = newName
+
+    def confirmNameChange(self, newName):
+        #not yet implemented... to be something along the lines of self.name == wifiCommunicator.actualLightState[Name]
+        pass
 
     def changeState(self):#change state of the light
         if self.state == 0:
@@ -22,10 +30,12 @@ class lightModuleClient:
             self.state = 0
             print("    Light ", self.connid, " is now OFF.")
 
+    #yet to be properly implemented using the self.actualLightState variable in the wifiCommunicator class
     def confirmOn(self):#if the server is making sure that the light is on, ensure the light is on
         self.state = 1
         print("    Light ", self.connid, " is now CONFIRMED ON.")
-    
+
+    #yet to be properly implemented using the self.actualLightState variable in the wifiCommunicator class
     def confirmOff(self):#if the server is making sure that the light is off, ensure the light is off
         self.state = 0
         print("    Light ", self.connid, " is now CONFIRMED OFF.")
@@ -43,6 +53,7 @@ class wifiCommunicator():
         self.host = "192.168.4.1"
         self.port = int("50007")
         self.start_connections()
+        self.actualLightState = None
 
     def start_connections(self):
         server_addr = (self.host, self.port)
@@ -87,7 +98,13 @@ class wifiCommunicator():
                     data.messages += [b"CONFIRMED OFF"]
                 if (recv_data == b"CONNECTED"):
                     lightModule.connect()
-
+                if (recv_data[0:7] == b"CHANGEN"):#full command is CHANGENAME_newName
+                    lightModule.changeName(recv_data[11:])#set the name of the light to the name in the wifi message
+                if (recv_data[0:11]==b'CONFIRMNAME'):#full command is CONFIRMCHANGENAME_newName
+                    if lightModule.confirmNameChange(recv_data[17:]) == 0:#check whether the light name has been changed
+                        data.messages += [b"NOTCHANGED"]#confirm that the name has not been changed
+                    else:
+                        data.messages += [b"CHANGED"]#confirm that the name has been changed
             if not recv_data: #or data.recv_total == data.msg_total:
                 print("closing connection", data.connid)
                 self.sel.unregister(sock)
@@ -102,6 +119,42 @@ class wifiCommunicator():
                 print("sending", repr(data.outb), "to connection", data.connid)
                 sent = sock.send(data.outb)  # Should be ready to write
                 data.outb = data.outb[sent:]
+    '''
+    This function returns the state of the light wifi command in the light dict with the highest connID on this pi0
+    (obviously there would be usually only 1 light module for a given pi0... but this format is useful for testing)
+
+    Outputs:
+        - None if there are no light modules initialized
+        - State if there is a light module, in this format: ["CONNECTED", "OFF", nameOfLight], ["DISCONNECTED", "OFF", nameOfLight], or ["CONNECTED", "ON", nameOfLight]
+        where nameOfLight is the name which the wifi is requesting that the lightModuleBeNamed
+
+    Note that we have not dealt with the edge case of the piui disconnecting... ie ["DISCONNECTED", "ON"]
+    ''' 
+    def getState(self):
+        state = None
+        highestConnID = -1
+        for id in self.lightModuleDict:#iterate through each light module on this pi0 
+            if id > highestConnID: #if we have found a light with a new higher connid than previously... update the state with info for this light
+                lightModule = self.lightModuleDict[id]
+                if lightModule.state == 2:
+                    state = ["DISCONNECTED", "OFF", lightModule.name]
+                elif lightModule.state == 1:
+                    state = ["CONNECTED", "ON", lightModule.name]
+                elif lightModule.state == 0:
+                    state = ["CONNECTED", "OFF", lightModule.name]
+        return state
+    
+    '''
+    Tells the wifiCommunicator class about the actual state of the light
+
+    The wifi's response to this has not yet been implemented.
+
+    Input argument: Can be one of ["ON", nameOfLight, currentTime, triggeredOFF]
+    where nameOfLight is the name of the light, currentTime is the currentTime the light has been on for, and 
+    triggeredOFF is boolean whether the motion sensor has been triggered
+    '''
+    def confirmState(self, actualLightState):
+        self.actualLightState = actualLightState
 
     def checkWifi(self):
         try:
