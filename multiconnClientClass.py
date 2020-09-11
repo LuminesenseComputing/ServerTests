@@ -72,7 +72,7 @@ class wifiCommunicator():
                 outb=b"",
             )
             self.sel.register(sock, events, data=data)
-            self.lightModuleDict[connid] = lightModuleClient(connid)
+            self.lightModuleDict[connid] = lightModuleClient(data.connid)
 
     def service_connection(self, key, mask):
         sock = key.fileobj
