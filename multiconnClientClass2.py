@@ -42,6 +42,8 @@ discuss with the others exactly what needs to be done in this situation.
 and then not continuing to try if the connection is unsuccessful. If will make a queue of light modules that need to be connected but 
 have not yet been connected...
 
+
+python C:/Users/chris/Documents/programming/github/uv/ServerTests/multiconnClientRunClass2.py
 '''
 
 class lightModuleClient:
@@ -115,7 +117,7 @@ class wifiCommunicator():
         self.port = int("50007")
         self.start_connections(initialStateList)
 
-    #THIS HAS TO BE COMPLETELY REDONE TO REATTEMPT CONNECTION IF UNSUCCESSFUL THE FIRST TIME!!!!!!!!
+    #attempt to start the wifi connections and create lightModuleClient objects in the lightModuleDict for each light
     def start_connections(self, initialStateList):
         server_addr = (self.host, self.port)
         for i in range(0, self.num_conns):
@@ -166,25 +168,20 @@ class wifiCommunicator():
             if recv_data:
                 print("received", repr(recv_data), "from connection", data.connid)
                 #data.recv_total += len(recv_data)
+                
+                #if the piui requests the light changes state
                 if (recv_data == b"CHANGE STATE"):
                     #turn the light on or off
                     lightModule.changeWifiState()
 
-                    '''THIS IS OLD AND NO LONGER NEEDED, we must now only change wifiState and then only confirm the light is on when it has actually been turned on
-                    #ACTUALLY NEVERMIND SOMETHING LIKE THIS IS GOOD TO HAVE AS SOON AS THE STATE IS CHANGED...
-                    if lightModule.wifiState == "OFF":
-                        data.messages += [b"TURNED OFF"]
-                    else:
-                        data.messages += [b"TURNED ON"]
-                    '''
-                '''THIS WHOLE SECTION MSUST BE REMADE WITH THE SINGLE NEW CONFIRMSTATE FUNCTION
-                if (recv_data == b"CONFIRM ON"):
-                    lightModule.confirmOn()
-                    data.messages += [b"CONFIRMED ON"]
-                if (recv_data == b"CONFIRM OFF"):
-                    lightModule.confirmOff()
-                    data.messages += [b"CONFIRMED OFF"]
+                '''THIS IS OLD AND NO LONGER NEEDED, we must now only change wifiState and then only confirm the light is on when it has actually been turned on
+                #ACTUALLY NEVERMIND SOMETHING LIKE THIS IS GOOD TO HAVE AS SOON AS THE STATE IS CHANGED...
+                if lightModule.wifiState == "OFF":
+                    data.messages += [b"TURNED OFF"]
+                else:
+                    data.messages += [b"TURNED ON"]
                 '''
+                #if the piui requests to confirm whether the light has changed state
                 if (recv_data == b"CONFIRM STATE"):
                     stateConfirmation = lightModule.confirmState()
                     if stateConfirmation[0] == False:#if the light has not yet changed state
@@ -197,16 +194,24 @@ class wifiCommunicator():
                             data.messages += [b"STATECHANGED_ON"]
                         else:
                             data.messages += [b"STATECHANGED_OFF"]
-                        
+                #if the piui asks what state the light is currently in
+                if (recv_data == b"GET STATE"):
+                    if lightModule.actualState == "ON":#if the light is send a message to the piui saying such, and vice versa
+                        data.messages += [b"STATEIS_ON"]
+                    elif lightModule.actualState == "OFF":
+                        data.messages += [b"STATEIS_OFF"]
+                #the piui tells the light module that it has successfully connected wifi
                 if (recv_data == b"CONNECTED"):
                     lightModule.connect()
+
+                #piui name change commands#ADD IN FOR GET NAME COMMAND DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
                 if (recv_data[0:7] == b"CHANGEN"):#full command is CHANGENAME_newName
                     lightModule.changeWifiName(recv_data[11:])#set the name of the light to the name in the wifi message
-                if (recv_data[0:11]==b'CONFIRMCHANG'):#full command is CONFIRMCHANGENAME_newName
+                if (recv_data==b'CONFIRMCHANGENAME'):#full command is CONFIRMCHANGENAME
                     if lightModule.confirmNameChange(recv_data[17:]) == False:#check whether the light name has been changed
-                        data.messages += [b"NAMENOTCHANGED"]#confirm that the name has not been changed
+                        data.messages += [b"NAMENOTCHANGED"]#confirm that the name has not been changed with the response NAMENOTCHANGED
                     else:
-                        data.messages += [b"NAMECHANGED"]#confirm that the name has been changed
+                        data.messages += [b"NAMECHANGED_"+bytes(lightModule.actualName,'utf-8')]#confirm that the name has been changed woth the response NAMECHANGED_newName
             if not recv_data: #or data.recv_total == data.msg_total: #if it gets disconnected from the base station
                 print("closing socket", data.connid)
                 self.sel.unregister(sock)
